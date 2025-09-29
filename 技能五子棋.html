@@ -1,0 +1,1220 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>技能五子棋</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    
+    <!-- Tailwind 配置 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#8B5CF6', // 主色调：紫色
+                        secondary: '#D97706', // 辅助色：金色
+                        board: '#E6B325', // 棋盘色：木色
+                        dark: '#1F2937', // 深色
+                        light: '#F9FAFB' // 浅色
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                    animation: {
+                        'spin-slow': 'spin 1s ease-in-out',
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .board-grid {
+                background-image: linear-gradient(to right, #000 1px, transparent 1px),
+                                linear-gradient(to bottom, #000 1px, transparent 1px);
+            }
+            .piece-black {
+                background: radial-gradient(circle at 30% 30%, #666, #000);
+            }
+            .piece-white {
+                background: radial-gradient(circle at 30% 30%, #fff, #ccc);
+            }
+            .skill-btn {
+                @apply relative flex items-center justify-center gap-2 px-4 py-3 rounded-lg transition-all duration-300 
+                       cursor-pointer text-white font-medium shadow-lg transform hover:scale-105 active:scale-95;
+            }
+            .skill-btn-disabled {
+                @apply opacity-50 cursor-not-allowed hover:scale-100;
+            }
+            .skill-count {
+                @apply absolute -top-2 -right-2 bg-dark text-white text-xs rounded-full w-5 h-5 flex items-center justify-center;
+            }
+            .modal-backdrop {
+                backdrop-filter: blur(5px);
+            }
+            .taunt-message {
+                @apply fixed top-1/4 left-1/2 transform -translate-x-1/2 bg-red-600 text-white px-6 py-4 rounded-lg 
+                       shadow-2xl z-50 transition-all duration-500 opacity-0 scale-90;
+            }
+            .taunt-message.show {
+                @apply opacity-100 scale-100;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-dark to-gray-800 min-h-screen flex flex-col items-center justify-center p-4 text-light font-sans">
+    <!-- 游戏标题 -->
+    <h1 class="text-[clamp(2rem,5vw,3rem)] font-bold text-transparent bg-clip-text bg-gradient-to-r from-primary to-secondary mb-6 tracking-wider">
+        技能五子棋
+    </h1>
+    
+    <!-- 游戏模式选择模态框 -->
+    <div id="modeModal" class="fixed inset-0 flex items-center justify-center z-50 modal-backdrop bg-black/50">
+        <div class="bg-gray-800 rounded-xl p-8 w-full max-w-md shadow-2xl transform transition-all">
+            <h2 class="text-2xl font-bold mb-6 text-center text-primary">选择游戏模式</h2>
+            <div class="grid gap-4">
+                <button id="vsPlayerBtn" class="bg-gradient-to-r from-blue-500 to-blue-600 py-3 px-6 rounded-lg text-white font-medium text-lg hover:shadow-lg transition-all">
+                    人人对战
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 游戏信息区 -->
+    <div class="flex justify-between items-center w-full max-w-6xl mb-4 px-2">
+        <div class="flex items-center gap-2">
+            <div class="w-6 h-6 rounded-full piece-black"></div>
+            <span id="playerTurn" class="text-lg font-medium">黑方回合</span>
+        </div>
+        <div id="gameStatus" class="text-lg font-medium text-secondary">游戏进行中</div>
+    </div>
+    
+    <!-- 主游戏区域 -->
+    <div class="flex flex-col md:flex-row items-center justify-center gap-6 w-full max-w-6xl mb-8">
+        <!-- 黑方技能区 (左侧) -->
+        <div id="blackSkills" class="hidden md:flex flex-col gap-4">
+            <!-- 黑方飞沙走石 -->
+            <div class="skill-btn bg-gradient-to-r from-blue-600 to-blue-800" data-skill="remove" data-player="black">
+                <i class="fa fa-wind text-xl"></i>
+                <span>飞沙走石</span>
+                <span class="skill-count" data-skill="remove" data-player="black">3</span>
+            </div>
+            
+            <!-- 黑方力拔山兮 -->
+            <div class="skill-btn bg-gradient-to-r from-purple-600 to-purple-800" data-skill="shuffle" data-player="black">
+                <i class="fa fa-random text-xl"></i>
+                <span>力拔山兮</span>
+                <span class="skill-count" data-skill="shuffle" data-player="black">1</span>
+            </div>
+            
+            <!-- 黑方静如止水 -->
+            <div class="skill-btn bg-gradient-to-r from-cyan-600 to-cyan-800" data-skill="skip" data-player="black">
+                <i class="fa fa-pause text-xl"></i>
+                <span>静如止水</span>
+                <span class="skill-count" data-skill="skip" data-player="black">1</span>
+            </div>
+            
+            <!-- 黑方东山再起 -->
+            <div class="skill-btn bg-gradient-to-r from-green-600 to-green-800" data-skill="undo" data-player="black">
+                <i class="fa fa-undo text-xl"></i>
+                <span>东山再起</span>
+                <span class="skill-count" data-skill="undo" data-player="black">2</span>
+            </div>
+            
+            <!-- 黑方呀嘞呀嘞 -->
+            <div class="skill-btn bg-gradient-to-r from-red-600 to-red-800" data-skill="taunt" data-player="black">
+                <i class="fa fa-comment text-xl"></i>
+                <span>呀嘞呀嘞</span>
+                <span class="skill-count" data-skill="taunt" data-player="black">∞</span>
+            </div>
+            
+            <!-- 认输按钮 -->
+            <div class="skill-btn bg-gradient-to-r from-gray-600 to-gray-800" data-skill="surrender" data-player="black">
+                <i class="fa fa-flag text-xl"></i>
+                <span>认输</span>
+            </div>
+        </div>
+        
+        <!-- 棋盘容器 -->
+        <div class="relative">
+            <div id="board" class="board-grid bg-board rounded-lg shadow-2xl transition-all duration-300 ease-in-out">
+                <!-- 棋盘将通过JS动态生成 -->
+            </div>
+            
+            <!-- 胜利连线动画容器 -->
+            <div id="winLineContainer" class="absolute top-0 left-0 pointer-events-none"></div>
+        </div>
+        
+        <!-- 白方技能区 (右侧) - 人人对战使用 -->
+        <div id="whiteSkills" class="hidden md:flex flex-col gap-4">
+            <!-- 白方飞沙走石 -->
+            <div class="skill-btn bg-gradient-to-r from-blue-600 to-blue-800" data-skill="remove" data-player="white">
+                <i class="fa fa-wind text-xl"></i>
+                <span>飞沙走石</span>
+                <span class="skill-count" data-skill="remove" data-player="white">3</span>
+            </div>
+            
+            <!-- 白方力拔山兮 -->
+            <div class="skill-btn bg-gradient-to-r from-purple-600 to-purple-800" data-skill="shuffle" data-player="white">
+                <i class="fa fa-random text-xl"></i>
+                <span>力拔山兮</span>
+                <span class="skill-count" data-skill="shuffle" data-player="white">1</span>
+            </div>
+            
+            <!-- 白方静如止水 -->
+            <div class="skill-btn bg-gradient-to-r from-cyan-600 to-cyan-800" data-skill="skip" data-player="white">
+                <i class="fa fa-pause text-xl"></i>
+                <span>静如止水</span>
+                <span class="skill-count" data-skill="skip" data-player="white">1</span>
+            </div>
+            
+            <!-- 白方东山再起 -->
+            <div class="skill-btn bg-gradient-to-r from-green-600 to-green-800" data-skill="undo" data-player="white">
+                <i class="fa fa-undo text-xl"></i>
+                <span>东山再起</span>
+                <span class="skill-count" data-skill="undo" data-player="white">2</span>
+            </div>
+            
+            <!-- 白方呀嘞呀嘞 -->
+            <div class="skill-btn bg-gradient-to-r from-red-600 to-red-800" data-skill="taunt" data-player="white">
+                <i class="fa fa-comment text-xl"></i>
+                <span>呀嘞呀嘞</span>
+                <span class="skill-count" data-skill="taunt" data-player="white">∞</span>
+            </div>
+            
+            <!-- 认输按钮 -->
+            <div class="skill-btn bg-gradient-to-r from-gray-600 to-gray-800" data-skill="surrender" data-player="white">
+                <i class="fa fa-flag text-xl"></i>
+                <span>认输</span>
+            </div>
+        </div>
+        
+        <!-- 移动端技能区 -->
+        <div id="mobileSkills" class="w-full grid grid-cols-5 gap-2 md:hidden">
+            <!-- 移动端技能将通过JS动态生成 -->
+        </div>
+    </div>
+    
+    <!-- 控制按钮 -->
+    <div class="flex gap-4">
+        <button id="restartBtn" class="bg-gradient-to-r from-primary to-purple-700 px-6 py-3 rounded-lg text-white font-medium shadow-lg hover:shadow-xl transition-all flex items-center gap-2">
+            <i class="fa fa-refresh"></i>
+            <span>重新开始</span>
+        </button>
+    </div>
+    
+    <!-- 游戏结束模态框 -->
+    <div id="gameOverModal" class="fixed inset-0 flex items-center justify-center z-50 hidden">
+        <div class="bg-black/50 modal-backdrop absolute inset-0"></div>
+        <div class="bg-gray-800 rounded-xl p-8 w-full max-w-md shadow-2xl transform transition-all relative z-10">
+            <h2 id="gameOverTitle" class="text-2xl font-bold mb-4 text-center"></h2>
+            <p id="gameOverMessage" class="text-center mb-6 text-gray-300"></p>
+            <button id="playAgainBtn" class="w-full bg-gradient-to-r from-primary to-secondary py-3 px-6 rounded-lg text-white font-medium text-lg hover:shadow-lg transition-all">
+                再来一局
+            </button>
+        </div>
+    </div>
+    
+    <!-- 嘲讽消息容器 -->
+    <div id="tauntContainer" class="taunt-message"></div>
+
+    <script>
+        // 确保DOM加载完成后再执行
+        document.addEventListener('DOMContentLoaded', function() {
+            // 游戏配置
+            const config = {
+                size: 15, // 15x15 棋盘
+                cellSize: 30, // 每个格子的大小（像素）
+                gameMode: 'player', // 游戏模式：只保留人人对战
+                // 技能次数 - 人人模式双方各有
+                twoPlayerSkills: {
+                    black: {
+                        remove: 3,
+                        shuffle: 1,
+                        skip: 1,
+                        undo: 2
+                    },
+                    white: {
+                        remove: 3,
+                        shuffle: 1,
+                        skip: 1,
+                        undo: 2
+                    }
+                },
+                // 嘲讽语言列表
+                taunts: [
+                    "就这水平还敢来挑战？",
+                    "你下的这叫棋吗？幼儿园水平吧",
+                    "我让你三子都能赢，信不信？",
+                    "快认输吧，别浪费时间了",
+                    "你的每一步都在我的预料之中，太菜了"
+                ]
+            };
+            
+            // 游戏状态
+            const gameState = {
+                board: Array(config.size).fill().map(() => Array(config.size).fill(null)),
+                currentPlayer: 'black', // black 是玩家1，white 是玩家2
+                gameOver: false,
+                history: [], // 用于存储历史记录，支持"东山再起"技能
+                historyDetails: [], // 存储详细历史，包括技能使用
+                skipTurn: false, // 是否跳过下一回合
+                gameMode: config.gameMode,
+                isProcessing: false // 防止重复处理落子
+            };
+            
+            // DOM 元素获取
+            const boardElement = document.getElementById('board');
+            const modeModal = document.getElementById('modeModal');
+            const vsPlayerBtn = document.getElementById('vsPlayerBtn');
+            const gameOverModal = document.getElementById('gameOverModal');
+            const gameOverTitle = document.getElementById('gameOverTitle');
+            const gameOverMessage = document.getElementById('gameOverMessage');
+            const playAgainBtn = document.getElementById('playAgainBtn');
+            const restartBtn = document.getElementById('restartBtn');
+            const playerTurnElement = document.getElementById('playerTurn');
+            const gameStatusElement = document.getElementById('gameStatus');
+            const winLineContainer = document.getElementById('winLineContainer');
+            const blackSkills = document.getElementById('blackSkills');
+            const whiteSkills = document.getElementById('whiteSkills');
+            const mobileSkills = document.getElementById('mobileSkills');
+            const tauntContainer = document.getElementById('tauntContainer');
+            
+            // 初始化棋盘大小
+            function initBoardDimensions() {
+                const boardDimension = config.size * config.cellSize;
+                boardElement.style.width = boardDimension + 'px';
+                boardElement.style.height = boardDimension + 'px';
+                boardElement.style.backgroundSize = config.cellSize + 'px ' + config.cellSize + 'px';
+                winLineContainer.style.width = boardDimension + 'px';
+                winLineContainer.style.height = boardDimension + 'px';
+            }
+            
+            // 初始化棋盘
+            function initializeBoard() {
+                // 清空棋盘和连线容器
+                boardElement.innerHTML = '';
+                winLineContainer.innerHTML = '';
+                
+                // 创建棋盘格子
+                for (let y = 0; y < config.size; y++) {
+                    for (let x = 0; x < config.size; x++) {
+                        // 创建格子容器
+                        const cell = document.createElement('div');
+                        cell.classList.add('absolute', 'cursor-pointer', 'transition-all', 'duration-150', 'hover:bg-black/10');
+                        cell.style.width = config.cellSize + 'px';
+                        cell.style.height = config.cellSize + 'px';
+                        cell.style.left = x * config.cellSize + 'px';
+                        cell.style.top = y * config.cellSize + 'px';
+                        cell.dataset.x = x;
+                        cell.dataset.y = y;
+                        
+                        // 添加点击事件
+                        cell.addEventListener('click', function() {
+                            handleCellClick(x, y);
+                        });
+                        
+                        boardElement.appendChild(cell);
+                    }
+                }
+                
+                // 重置游戏状态
+                gameState.board = Array(config.size).fill().map(() => Array(config.size).fill(null));
+                gameState.currentPlayer = 'black';
+                gameState.gameOver = false;
+                gameState.history = [];
+                gameState.historyDetails = [];
+                gameState.skipTurn = false;
+                gameState.isProcessing = false;
+                
+                // 重置技能次数
+                resetSkills();
+                
+                // 更新UI
+                updatePlayerTurn();
+                gameStatusElement.textContent = '游戏进行中';
+                gameStatusElement.className = 'text-lg font-medium text-secondary';
+                
+                // 保存初始状态
+                saveHistoryState();
+                
+                // 更新技能区显示
+                updateSkillUI();
+            }
+            
+            // 重置技能次数
+            function resetSkills() {
+                config.twoPlayerSkills.black = {
+                    remove: 3,
+                    shuffle: 1,
+                    skip: 1,
+                    undo: 2
+                };
+                config.twoPlayerSkills.white = {
+                    remove: 3,
+                    shuffle: 1,
+                    skip: 1,
+                    undo: 2
+                };
+            }
+            
+            // 更新技能UI显示
+            function updateSkillUI() {
+                // 只显示人人模式的两列技能
+                blackSkills.classList.remove('hidden');
+                whiteSkills.classList.remove('hidden');
+                
+                // 移动端技能区处理
+                mobileSkills.innerHTML = '';
+                if (window.innerWidth < 768) { // 移动端
+                    const skills = ['remove', 'shuffle', 'skip', 'undo', 'taunt'];
+                    skills.forEach(function(skill) {
+                        const btn = document.createElement('div');
+                        btn.className = 'skill-btn bg-gradient-to-r from-primary to-purple-800';
+                        btn.dataset.skill = skill;
+                        btn.dataset.player = gameState.currentPlayer;
+                        
+                        let icon = '';
+                        switch(skill) {
+                            case 'remove': icon = 'fa-wind'; break;
+                            case 'shuffle': icon = 'fa-random'; break;
+                            case 'skip': icon = 'fa-pause'; break;
+                            case 'undo': icon = 'fa-undo'; break;
+                            case 'taunt': icon = 'fa-comment'; break;
+                        }
+                        
+                        const count = skill === 'taunt' ? '∞' : 
+                                     config.twoPlayerSkills[gameState.currentPlayer][skill];
+                        
+                        btn.innerHTML = `
+                            <i class="fa ${icon} text-xl"></i>
+                            <span class="skill-count" data-skill="${skill}" data-player="${gameState.currentPlayer}">${count}</span>
+                        `;
+                        
+                        btn.addEventListener('click', handleSkillClick);
+                        mobileSkills.appendChild(btn);
+                    });
+                }
+                
+                // 更新技能次数显示
+                ['black', 'white'].forEach(function(player) {
+                    Object.keys(config.twoPlayerSkills[player]).forEach(function(skill) {
+                        const countEl = document.querySelector(`.skill-count[data-skill="${skill}"][data-player="${player}"]`);
+                        if (countEl) {
+                            countEl.textContent = config.twoPlayerSkills[player][skill];
+                            
+                            // 更新按钮状态
+                            const btnEl = document.querySelector(`.skill-btn[data-skill="${skill}"][data-player="${player}"]`);
+                            if (btnEl) {
+                                if (config.twoPlayerSkills[player][skill] <= 0) {
+                                    btnEl.classList.add('skill-btn-disabled');
+                                } else {
+                                    btnEl.classList.remove('skill-btn-disabled');
+                                }
+                            }
+                        }
+                    });
+                });
+                
+                // 嘲讽技能特殊处理
+                ['black', 'white'].forEach(function(player) {
+                    const countEl = document.querySelector(`.skill-count[data-skill="taunt"][data-player="${player}"]`);
+                    if (countEl) {
+                        countEl.textContent = '∞';
+                    }
+                });
+                
+                // 禁用非当前玩家的技能
+                const opponent = gameState.currentPlayer === 'black' ? 'white' : 'black';
+                document.querySelectorAll(`.skill-btn[data-player="${opponent}"]`).forEach(function(btn) {
+                    btn.classList.add('opacity-50', 'cursor-not-allowed', 'hover:scale-100');
+                });
+                document.querySelectorAll(`.skill-btn[data-player="${gameState.currentPlayer}"]`).forEach(function(btn) {
+                    if (!btn.classList.contains('skill-btn-disabled')) {
+                        btn.classList.remove('opacity-50', 'cursor-not-allowed', 'hover:scale-100');
+                    }
+                });
+            }
+            
+            // 处理格子点击
+            function handleCellClick(x, y) {
+                // 防止重复处理
+                if (gameState.isProcessing) return;
+                
+                // 如果游戏结束，不处理点击
+                if (gameState.gameOver) {
+                    return;
+                }
+                
+                // 如果格子已被占用，不处理点击
+                if (gameState.board[y][x] !== null) {
+                    return;
+                }
+                
+                // 标记为处理中
+                gameState.isProcessing = true;
+                
+                // 放置棋子 - 只有落子才会结束回合
+                placePiece(x, y, gameState.currentPlayer);
+                
+                // 记录历史详情
+                gameState.historyDetails.push({
+                    type: 'move',
+                    player: gameState.currentPlayer,
+                    x: x,
+                    y: y
+                });
+                
+                // 检查是否获胜
+                if (checkWin(x, y, gameState.currentPlayer)) {
+                    const winner = gameState.currentPlayer === 'black' ? 'player1' : 'player2';
+                    endGame(winner);
+                    gameState.isProcessing = false;
+                    return;
+                }
+                
+                // 检查是否平局
+                if (checkDraw()) {
+                    endGame('draw');
+                    gameState.isProcessing = false;
+                    return;
+                }
+                
+                // 处理回合切换 - 只有落子才会切换回合
+                if (gameState.skipTurn) {
+                    // 跳过下一回合，当前玩家继续
+                    gameState.skipTurn = false;
+                    gameStatusElement.textContent = '对方回合已跳过';
+                    gameStatusElement.className = 'text-lg font-medium text-yellow-500';
+                } else {
+                    // 切换玩家
+                    gameState.currentPlayer = gameState.currentPlayer === 'black' ? 'white' : 'black';
+                }
+                
+                updatePlayerTurn();
+                updateSkillUI();
+                gameState.isProcessing = false;
+            }
+            
+            // 放置棋子
+            function placePiece(x, y, player) {
+                // 更新游戏状态
+                gameState.board[y][x] = player;
+                
+                // 创建棋子元素
+                const piece = document.createElement('div');
+                piece.classList.add('absolute', 'rounded-full', 'transition-all', 'duration-300', 'transform', 'scale-0', 'shadow-lg');
+                piece.classList.add(player === 'black' ? 'piece-black' : 'piece-white');
+                piece.style.width = (config.cellSize * 0.8) + 'px';
+                piece.style.height = (config.cellSize * 0.8) + 'px';
+                piece.style.left = (x * config.cellSize + config.cellSize * 0.1) + 'px';
+                piece.style.top = (y * config.cellSize + config.cellSize * 0.1) + 'px';
+                piece.dataset.x = x;
+                piece.dataset.y = y;
+                
+                // 添加到棋盘
+                boardElement.appendChild(piece);
+                
+                // 动画效果
+                setTimeout(function() {
+                    piece.classList.remove('scale-0');
+                    piece.classList.add('scale-100');
+                }, 10);
+                
+                // 保存历史状态
+                saveHistoryState();
+            }
+            
+            // 移除棋子
+            function removePiece(x, y) {
+                // 更新游戏状态
+                gameState.board[y][x] = null;
+                
+                // 移除DOM元素
+                const pieces = boardElement.querySelectorAll('div[class*="piece-"]');
+                for (let i = 0; i < pieces.length; i++) {
+                    const piece = pieces[i];
+                    if (parseInt(piece.dataset.x) === x && parseInt(piece.dataset.y) === y) {
+                        // 添加移除动画
+                        piece.classList.add('scale-0', 'opacity-0');
+                        setTimeout(function() {
+                            piece.remove();
+                        }, 300);
+                        break;
+                    }
+                }
+            }
+            
+            // 保存历史状态
+            function saveHistoryState() {
+                // 深拷贝当前棋盘状态
+                const boardCopy = JSON.parse(JSON.stringify(gameState.board));
+                
+                // 保存技能状态
+                const skillsCopy = {
+                    black: JSON.parse(JSON.stringify(config.twoPlayerSkills.black)),
+                    white: JSON.parse(JSON.stringify(config.twoPlayerSkills.white))
+                };
+                
+                gameState.history.push({
+                    board: boardCopy,
+                    currentPlayer: gameState.currentPlayer,
+                    skills: skillsCopy
+                });
+                
+                // 限制历史记录长度
+                if (gameState.history.length > 20) {
+                    gameState.history.shift();
+                }
+            }
+            
+            // 检查是否获胜
+            function checkWin(x, y, player) {
+                const directions = [
+                    [1, 0],  // 水平
+                    [0, 1],  // 垂直
+                    [1, 1],  // 对角线
+                    [1, -1]  // 反对角线
+                ];
+                
+                for (let i = 0; i < directions.length; i++) {
+                    const [dx, dy] = directions[i];
+                    let count = 1; // 当前位置已有一个棋子
+                    
+                    // 正方向检查
+                    for (let j = 1; j < 5; j++) {
+                        const newX = x + dx * j;
+                        const newY = y + dy * j;
+                        if (
+                            newX >= 0 && newX < config.size &&
+                            newY >= 0 && newY < config.size &&
+                            gameState.board[newY][newX] === player
+                        ) {
+                            count++;
+                        } else {
+                            break;
+                        }
+                    }
+                    
+                    // 反方向检查
+                    for (let j = 1; j < 5; j++) {
+                        const newX = x - dx * j;
+                        const newY = y - dy * j;
+                        if (
+                            newX >= 0 && newX < config.size &&
+                            newY >= 0 && newY < config.size &&
+                            gameState.board[newY][newX] === player
+                        ) {
+                            count++;
+                        } else {
+                            break;
+                        }
+                    }
+                    
+                    // 如果有五连子，绘制胜利线并返回true
+                    if (count >= 5) {
+                        drawWinLine(x, y, dx, dy, count);
+                        return true;
+                    }
+                }
+                
+                return false;
+            }
+            
+            // 绘制胜利线
+            function drawWinLine(x, y, dx, dy, count) {
+                // 计算胜利线的起点和终点
+                let startX = x;
+                let startY = y;
+                let endX = x;
+                let endY = y;
+                
+                // 找到起点
+                for (let i = 1; i < count; i++) {
+                    const newX = x - dx * i;
+                    const newY = y - dy * i;
+                    if (
+                        newX >= 0 && newX < config.size &&
+                        newY >= 0 && newY < config.size &&
+                        gameState.board[newY][newX] === gameState.currentPlayer
+                    ) {
+                        startX = newX;
+                        startY = newY;
+                    } else {
+                        break;
+                    }
+                }
+                
+                // 找到终点
+                for (let i = 1; i < count; i++) {
+                    const newX = x + dx * i;
+                    const newY = y + dy * i;
+                    if (
+                        newX >= 0 && newX < config.size &&
+                        newY >= 0 && newY < config.size &&
+                        gameState.board[newY][newX] === gameState.currentPlayer
+                    ) {
+                        endX = newX;
+                        endY = newY;
+                    } else {
+                        break;
+                    }
+                }
+                
+                // 转换为像素坐标（中心点）
+                const centerOffset = config.cellSize / 2;
+                const startPixelX = startX * config.cellSize + centerOffset;
+                const startPixelY = startY * config.cellSize + centerOffset;
+                const endPixelX = endX * config.cellSize + centerOffset;
+                const endPixelY = endY * config.cellSize + centerOffset;
+                
+                // 创建胜利线
+                const line = document.createElement('div');
+                line.classList.add('absolute', 'bg-red-500', 'z-10', 'transition-all', 'duration-500', 'scale-x-0', 'origin-left');
+                
+                // 计算线的长度和角度
+                const length = Math.sqrt(Math.pow(endPixelX - startPixelX, 2) + Math.pow(endPixelY - startPixelY, 2));
+                const angle = Math.atan2(endPixelY - startPixelY, endPixelX - startPixelX) * 180 / Math.PI;
+                
+                // 设置线的样式
+                line.style.width = length + 'px';
+                line.style.height = '4px';
+                line.style.left = startPixelX + 'px';
+                line.style.top = startPixelY + 'px';
+                line.style.transformOrigin = '0 50%';
+                line.style.transform = 'rotate(' + angle + 'deg)';
+                line.style.borderRadius = '2px';
+                
+                // 添加到容器并显示动画
+                winLineContainer.appendChild(line);
+                setTimeout(function() {
+                    line.classList.remove('scale-x-0');
+                    line.classList.add('scale-x-100');
+                }, 10);
+            }
+            
+            // 检查是否平局
+            function checkDraw() {
+                for (let y = 0; y < config.size; y++) {
+                    for (let x = 0; x < config.size; x++) {
+                        if (gameState.board[y][x] === null) {
+                            return false; // 还有空位，不是平局
+                        }
+                    }
+                }
+                return true; // 棋盘已满，平局
+            }
+            
+            // 结束游戏
+            function endGame(winner) {
+                gameState.gameOver = true;
+                
+                // 更新游戏状态文本
+                if (winner === 'player1') {
+                    gameOverTitle.textContent = '恭喜黑方获得胜利';
+                    gameOverMessage.textContent = '黑方赢得了比赛！';
+                    gameStatusElement.textContent = '恭喜黑方获得胜利';
+                    gameStatusElement.className = 'text-lg font-medium text-green-500';
+                } else if (winner === 'player2') {
+                    gameOverTitle.textContent = '恭喜白方获得胜利';
+                    gameOverMessage.textContent = '白方赢得了比赛！';
+                    gameStatusElement.textContent = '恭喜白方获得胜利';
+                    gameStatusElement.className = 'text-lg font-medium text-green-500';
+                } else {
+                    gameOverTitle.textContent = '平局';
+                    gameOverMessage.textContent = '棋盘已满，双方势均力敌！';
+                    gameStatusElement.textContent = '平局';
+                    gameStatusElement.className = 'text-lg font-medium text-yellow-500';
+                }
+                
+                // 显示游戏结束模态框
+                setTimeout(function() {
+                    gameOverModal.classList.remove('hidden');
+                    gameOverModal.classList.add('flex');
+                }, 1000);
+            }
+            
+            // 更新当前回合显示
+            function updatePlayerTurn() {
+                if (gameState.currentPlayer === 'black') {
+                    playerTurnElement.textContent = '黑方回合';
+                    playerTurnElement.className = 'text-lg font-medium text-green-400';
+                } else {
+                    playerTurnElement.textContent = '白方回合';
+                    playerTurnElement.className = 'text-lg font-medium text-red-400';
+                }
+            }
+            
+            // 处理技能点击 - 使用技能不结束回合
+            function handleSkillClick(event) {
+                event.stopPropagation();
+                
+                if (gameState.gameOver || gameState.isProcessing) {
+                    return;
+                }
+                
+                const skillBtn = event.currentTarget;
+                const skill = skillBtn.dataset.skill;
+                const player = skillBtn.dataset.player;
+                
+                // 检查是否是当前玩家的技能
+                if (player !== gameState.currentPlayer) {
+                    return;
+                }
+                
+                // 处理认输技能
+                if (skill === 'surrender') {
+                    const winner = player === 'black' ? 'player2' : 'player1';
+                    endGame(winner);
+                    return;
+                }
+                
+                let used = false;
+                
+                switch (skill) {
+                    case 'remove':
+                        used = useRemoveSkill(player);
+                        break;
+                    case 'shuffle':
+                        used = useShuffleSkill(player);
+                        break;
+                    case 'skip':
+                        used = useSkipSkill(player);
+                        break;
+                    case 'undo':
+                        used = useUndoSkill(player);
+                        break;
+                    case 'taunt':
+                        used = useTauntSkill(player);
+                        break;
+                }
+                
+                // 使用技能不结束回合，不切换玩家
+                if (used) {
+                    gameState.historyDetails.push({
+                        type: 'skill',
+                        skill: skill,
+                        player: player
+                    });
+                    
+                    // 检查当前玩家是否获胜（技能可能导致胜利）
+                    if (checkWinForPlayer(player)) {
+                        const winner = player === 'black' ? 'player1' : 'player2';
+                        endGame(winner);
+                    } else if (checkDraw()) {
+                        endGame('draw');
+                    }
+                    // 不切换玩家，当前玩家继续回合
+                    updateSkillUI();
+                }
+            }
+            
+            // 技能：飞沙走石（随机移除对方的一颗棋子）
+            function useRemoveSkill(player) {
+                // 检查技能次数
+                const skillCount = config.twoPlayerSkills[player].remove;
+                if (skillCount <= 0) {
+                    return false;
+                }
+                
+                // 确定对方玩家
+                const opponent = player === 'black' ? 'white' : 'black';
+                
+                // 收集对方的棋子
+                const opponentPieces = [];
+                for (let y = 0; y < config.size; y++) {
+                    for (let x = 0; x < config.size; x++) {
+                        if (gameState.board[y][x] === opponent) {
+                            opponentPieces.push([x, y]);
+                        }
+                    }
+                }
+                
+                if (opponentPieces.length === 0) {
+                    gameStatusElement.textContent = '对方没有棋子可移除';
+                    gameStatusElement.className = 'text-lg font-medium text-red-500';
+                    return false;
+                }
+                
+                // 随机选择一个棋子移除
+                const randomIndex = Math.floor(Math.random() * opponentPieces.length);
+                const [x, y] = opponentPieces[randomIndex];
+                removePiece(x, y);
+                
+                // 减少技能使用次数并更新UI
+                config.twoPlayerSkills[player].remove--;
+                updateSkillCount('remove', player, config.twoPlayerSkills[player].remove);
+                
+                // 播放技能动画
+                playSkillAnimation('remove', x, y);
+                
+                gameStatusElement.textContent = (player === 'black' ? '黑方' : '白方') + '使用了飞沙走石';
+                gameStatusElement.className = 'text-lg font-medium text-blue-400';
+                
+                return true;
+            }
+            
+            // 技能：力拔山兮（打乱棋盘上所有棋子的顺序，随机分布）
+            function useShuffleSkill(player) {
+                // 检查技能次数
+                const skillCount = config.twoPlayerSkills[player].shuffle;
+                if (skillCount <= 0) {
+                    return false;
+                }
+                
+                // 收集所有棋子
+                const pieces = [];
+                for (let y = 0; y < config.size; y++) {
+                    for (let x = 0; x < config.size; x++) {
+                        if (gameState.board[y][x] !== null) {
+                            pieces.push(gameState.board[y][x]);
+                            // 先移除所有棋子
+                            removePiece(x, y);
+                        }
+                    }
+                }
+                
+                if (pieces.length <= 1) {
+                    gameStatusElement.textContent = '棋子太少，无法打乱';
+                    gameStatusElement.className = 'text-lg font-medium text-red-500';
+                    return false;
+                }
+                
+                // 打乱棋子顺序
+                shuffleArray(pieces);
+                
+                // 收集所有空位并打乱
+                const emptyCells = [];
+                for (let y = 0; y < config.size; y++) {
+                    for (let x = 0; x < config.size; x++) {
+                        if (gameState.board[y][x] === null) {
+                            emptyCells.push([x, y]);
+                        }
+                    }
+                }
+                shuffleArray(emptyCells);
+                
+                // 随机放置棋子到打乱后的空位
+                setTimeout(function() {
+                    for (let i = 0; i < pieces.length; i++) {
+                        const [x, y] = emptyCells[i];
+                        placePiece(x, y, pieces[i]);
+                    }
+                    
+                    // 减少技能使用次数并更新UI
+                    config.twoPlayerSkills[player].shuffle--;
+                    updateSkillCount('shuffle', player, config.twoPlayerSkills[player].shuffle);
+                    
+                    gameStatusElement.textContent = (player === 'black' ? '黑方' : '白方') + '使用了力拔山兮';
+                    gameStatusElement.className = 'text-lg font-medium text-purple-400';
+                }, 500);
+                
+                // 播放技能动画
+                playSkillAnimation('shuffle');
+                
+                return true;
+            }
+            
+            // 技能：静如止水（跳过对方一回合）
+            function useSkipSkill(player) {
+                // 检查技能次数
+                const skillCount = config.twoPlayerSkills[player].skip;
+                if (skillCount <= 0) {
+                    return false;
+                }
+                
+                // 设置跳过下一回合标记
+                gameState.skipTurn = true;
+                
+                // 减少技能使用次数并更新UI
+                config.twoPlayerSkills[player].skip--;
+                updateSkillCount('skip', player, config.twoPlayerSkills[player].skip);
+                
+                // 播放技能动画
+                playSkillAnimation('skip');
+                
+                gameStatusElement.textContent = (player === 'black' ? '黑方' : '白方') + '使用了静如止水，对方回合将被跳过';
+                gameStatusElement.className = 'text-lg font-medium text-cyan-400';
+                
+                return true;
+            }
+            
+            // 技能：东山再起（恢复到两回合之前的棋面）
+            function useUndoSkill(player) {
+                // 检查技能次数和历史记录
+                const skillCount = config.twoPlayerSkills[player].undo;
+                if (skillCount <= 0 || gameState.history.length < 3) {
+                    return false;
+                }
+                
+                // 移除当前所有棋子
+                for (let y = 0; y < config.size; y++) {
+                    for (let x = 0; x < config.size; x++) {
+                        if (gameState.board[y][x] !== null) {
+                            removePiece(x, y);
+                        }
+                    }
+                }
+                
+                // 恢复到两回合前的状态
+                setTimeout(function() {
+                    // 获取两回合前的状态
+                    const pastState = gameState.history[gameState.history.length - 3];
+                    gameState.board = JSON.parse(JSON.stringify(pastState.board));
+                    gameState.currentPlayer = pastState.currentPlayer;
+                    
+                    // 恢复技能状态
+                    config.twoPlayerSkills.black = JSON.parse(JSON.stringify(pastState.skills.black));
+                    config.twoPlayerSkills.white = JSON.parse(JSON.stringify(pastState.skills.white));
+                    
+                    // 重新放置棋子
+                    for (let y = 0; y < config.size; y++) {
+                        for (let x = 0; x < config.size; x++) {
+                            if (gameState.board[y][x] !== null) {
+                                placePiece(x, y, gameState.board[y][x]);
+                            }
+                        }
+                    }
+                    
+                    // 调整历史记录
+                    gameState.history = gameState.history.slice(0, gameState.history.length - 2);
+                    gameState.historyDetails = gameState.historyDetails.slice(0, gameState.historyDetails.length - 2);
+                    
+                    // 减少技能使用次数并更新UI
+                    config.twoPlayerSkills[player].undo--;
+                    
+                    updateSkillUI();
+                    gameStatusElement.textContent = (player === 'black' ? '黑方' : '白方') + '使用了东山再起，恢复到两回合前';
+                    gameStatusElement.className = 'text-lg font-medium text-green-400';
+                }, 500);
+                
+                // 播放技能动画
+                playSkillAnimation('undo');
+                
+                return true;
+            }
+            
+            // 技能：呀嘞呀嘞（嘲讽对方）
+            function useTauntSkill(player) {
+                // 随机选择一条嘲讽消息
+                const randomIndex = Math.floor(Math.random() * config.taunts.length);
+                const tauntMessage = config.taunts[randomIndex];
+                
+                // 显示嘲讽消息
+                tauntContainer.textContent = tauntMessage;
+                tauntContainer.classList.add('show');
+                
+                // 3秒后隐藏
+                setTimeout(function() {
+                    tauntContainer.classList.remove('show');
+                }, 3000);
+                
+                gameStatusElement.textContent = (player === 'black' ? '黑方' : '白方') + '使用了呀嘞呀嘞';
+                gameStatusElement.className = 'text-lg font-medium text-red-400';
+                
+                return true;
+            }
+            
+            // 更新技能使用次数显示
+            function updateSkillCount(skill, player, count) {
+                let countElement;
+                if (player) {
+                    countElement = document.querySelector(`.skill-count[data-skill="${skill}"][data-player="${player}"]`);
+                } else {
+                    countElement = document.querySelector(`.skill-count[data-skill="${skill}"]:not([data-player])`);
+                }
+                
+                if (countElement) {
+                    countElement.textContent = count;
+                    
+                    // 更新按钮状态
+                    let skillButton;
+                    if (player) {
+                        skillButton = document.querySelector(`.skill-btn[data-skill="${skill}"][data-player="${player}"]`);
+                    } else {
+                        skillButton = document.querySelector(`.skill-btn[data-skill="${skill}"]:not([data-player])`);
+                    }
+                    
+                    if (skillButton) {
+                        if (count <= 0) {
+                            skillButton.classList.add('skill-btn-disabled');
+                        } else {
+                            skillButton.classList.remove('skill-btn-disabled');
+                        }
+                    }
+                }
+                
+                // 同步更新移动端技能计数
+                if (window.innerWidth < 768) {
+                    const mobileCountEl = mobileSkills.querySelector(`.skill-count[data-skill="${skill}"][data-player="${player}"]`);
+                    if (mobileCountEl) {
+                        mobileCountEl.textContent = count;
+                    }
+                }
+            }
+            
+            // 播放技能动画
+            function playSkillAnimation(skill, x, y) {
+                // 创建技能动画元素
+                const animation = document.createElement('div');
+                animation.classList.add('absolute', 'pointer-events-none', 'z-20', 'transition-all', 'duration-700');
+                
+                switch (skill) {
+                    case 'remove':
+                        // 飞沙走石动画：从棋子位置向外扩散的波纹
+                        animation.classList.add('w-16', 'h-16', 'rounded-full', 'bg-blue-500', 'opacity-50');
+                        animation.style.left = (x * config.cellSize + config.cellSize / 2 - 32) + 'px';
+                        animation.style.top = (y * config.cellSize + config.cellSize / 2 - 32) + 'px';
+                        animation.style.transform = 'scale(0)';
+                        setTimeout(function() {
+                            animation.style.transform = 'scale(3)';
+                            animation.style.opacity = '0';
+                        }, 10);
+                        break;
+                        
+                    case 'shuffle':
+                        // 力拔山兮动画：棋盘闪烁和旋转
+                        animation.classList.add('w-full', 'h-full', 'bg-purple-500', 'opacity-30');
+                        animation.style.left = '0';
+                        animation.style.top = '0';
+                        boardElement.classList.add('animate-spin-slow');
+                        setTimeout(function() {
+                            boardElement.classList.remove('animate-spin-slow');
+                        }, 500);
+                        break;
+                        
+                    case 'skip':
+                        // 静如止水动画：冻结效果
+                        animation.classList.add('w-full', 'h-full', 'bg-cyan-500', 'opacity-30');
+                        animation.style.left = '0';
+                        animation.style.top = '0';
+                        animation.style.transform = 'scale(0)';
+                        setTimeout(function() {
+                            animation.style.transform = 'scale(1)';
+                        }, 10);
+                        setTimeout(function() {
+                            animation.style.opacity = '0';
+                        }, 300);
+                        break;
+                        
+                    case 'undo':
+                        // 东山再起动画：波纹效果
+                        animation.classList.add('w-full', 'h-full', 'bg-green-500', 'opacity-30');
+                        animation.style.left = '0';
+                        animation.style.top = '0';
+                        animation.style.transform = 'scale(0)';
+                        setTimeout(function() {
+                            animation.style.transform = 'scale(1)';
+                        }, 10);
+                        setTimeout(function() {
+                            animation.style.opacity = '0';
+                        }, 300);
+                        break;
+                }
+                
+                // 添加到棋盘并在动画结束后移除
+                boardElement.appendChild(animation);
+                setTimeout(function() {
+                    animation.remove();
+                }, 1000);
+            }
+            
+            // 打乱数组顺序
+            function shuffleArray(array) {
+                for (let i = array.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [array[i], array[j]] = [array[j], array[i]];
+                }
+                return array;
+            }
+            
+            // 检查玩家是否获胜（用于技能使用后）
+            function checkWinForPlayer(player) {
+                for (let y = 0; y < config.size; y++) {
+                    for (let x = 0; x < config.size; x++) {
+                        if (gameState.board[y][x] === player) {
+                            if (checkWin(x, y, player)) {
+                                return true;
+                            }
+                        }
+                    }
+                }
+                return false;
+            }
+            
+            // 事件监听：游戏模式选择
+            vsPlayerBtn.addEventListener('click', function() {
+                gameState.gameMode = 'player';
+                modeModal.classList.add('hidden');
+                // 显示两列技能
+                blackSkills.classList.remove('hidden');
+                whiteSkills.classList.remove('hidden');
+                initializeBoard();
+            });
+            
+            // 事件监听：技能按钮
+            document.querySelectorAll('.skill-btn').forEach(function(button) {
+                button.addEventListener('click', handleSkillClick);
+            });
+            
+            // 事件监听：再来一局
+            playAgainBtn.addEventListener('click', function() {
+                gameOverModal.classList.add('hidden');
+                gameOverModal.classList.remove('flex');
+                initializeBoard();
+            });
+            
+            // 事件监听：重新开始
+            restartBtn.addEventListener('click', function() {
+                // 隐藏游戏结束模态框（如果显示）
+                gameOverModal.classList.add('hidden');
+                gameOverModal.classList.remove('flex');
+                
+                // 显示模式选择
+                modeModal.classList.remove('hidden');
+            });
+            
+            // 响应式调整
+            function handleResize() {
+                // 根据屏幕宽度调整棋盘大小
+                const maxBoardSize = Math.min(window.innerWidth - 40, 500);
+                const newCellSize = Math.floor(maxBoardSize / config.size);
+                
+                if (newCellSize !== config.cellSize) {
+                    config.cellSize = newCellSize;
+                    initBoardDimensions();
+                    
+                    // 重新定位所有棋子
+                    const cells = boardElement.querySelectorAll('div[class*="piece-"]');
+                    cells.forEach(function(cell) {
+                        const x = parseInt(cell.dataset.x);
+                        const y = parseInt(cell.dataset.y);
+                        cell.style.width = (config.cellSize * 0.8) + 'px';
+                        cell.style.height = (config.cellSize * 0.8) + 'px';
+                        cell.style.left = (x * config.cellSize + config.cellSize * 0.1) + 'px';
+                        cell.style.top = (y * config.cellSize + config.cellSize * 0.1) + 'px';
+                    });
+                }
+                
+                // 更新技能UI以适应屏幕尺寸
+                updateSkillUI();
+            }
+            
+            // 初始化
+            initBoardDimensions();
+            
+            // 监听窗口大小变化
+            window.addEventListener('resize', handleResize);
+            
+            // 初始调整
+            handleResize();
+        });
+    </script>
+</body>
+</html>
